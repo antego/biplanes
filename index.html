@@ -10,16 +10,15 @@
 <body>
 
 <canvas id="myCanvas" width="960" height="640"></canvas>
-<div id="debugControls">
-        <label>G force</label><input type="number" id="gForce"><br>
-        <label>Wing force</label><input type="number" id="wForce"><br>
-        <label>Engine force</label><input type="number" id="eForce"><br>
-        <label>Mass</label><input type="number" id="mass"><br>
-        <label>Max speed</label><input type="number" id="maxSpeed"><br>
+<div id="debugControls" style="text-align: center">
+        <label id="score1" style="font-size: 36px;">Player 1 Score</label><br>
+        <label id="score2" style="font-size: 36px;">Player 2 Score</label><br>
 </div>
 
 <script>
     var canvas = document.getElementById("myCanvas");
+    var score1 = document.getElementById("score1");
+    var score2 = document.getElementById("score2");
     var ctx = canvas.getContext("2d");
 
     document.addEventListener("keydown", keyDownHandler, false);
@@ -27,31 +26,50 @@
 
     function keyDownHandler(e) {
         if(e.key == "Right" || e.key == "ArrowRight") {
-            rightPressed = true;
+            rightPressed2 = true;
         }
         else if(e.key == "Left" || e.key == "ArrowLeft") {
-            leftPressed = true;
+            leftPressed2 = true;
+        }
+        else if(e.key == "a") {
+            leftPressed1 = true;
+        }
+        else if(e.key == "d") {
+            rightPressed1 = true;
+        }
+        else if (e.key == " ") {
+            shoot(gameState.plane1Bullets, gameState.plane1);
+        }
+        else if (e.key == "Enter") {
+            shoot(gameState.plane2Bullets, gameState.plane2);
         }
     }
 
-    function shoot() {
+    function shoot(bullets, plane) {
         bullets.push(createBullet(plane.x + plane.width / 2, plane.y + plane.height / 2, plane.rotation));
     }
 
     function keyUpHandler(e) {
         if (e.key == "Right" || e.key == "ArrowRight") {
-            rightPressed = false;
+            rightPressed2 = false;
         }
         else if (e.key == "Left" || e.key == "ArrowLeft") {
-            leftPressed = false;
+            leftPressed2 = false;
         }
-        else if (e.key == " ") {
-            shoot();
+        else if (e.key == "a") {
+            leftPressed1 = false;
+        }
+        else if (e.key == "d") {
+            rightPressed1 = false;
         }
     }
 
-    var rightPressed = false;
-    var leftPressed = false;
+    DRAW_BOUNDING_BOX = false;
+    DRAW_PLANE_TEXTURE_BOX = false;
+    var rightPressed1 = false;
+    var leftPressed1 = false;
+    var rightPressed2 = false;
+    var leftPressed2 = false;
 
     var eForce = 0.03;
     var g = [0, eForce * 2];
@@ -59,56 +77,91 @@
     var wForce = [0, -0.03];
     var m = 1;
 
-    var plane = {
-        x: 0,
-        y: 40,
-        width: 40,
-        height: 30,
-        color: "#0000FF",
-        rotation: 0,
-        speed: [2, 0],
-        image: null,
+    var gameState = createGame();
+
+    function createGame() {
+        return {
+            score: {
+                player1: 0,
+                player2: 0,
+            },
+            plane1: createPlane(0, 40, true),
+            plane2: createPlane(640, 40, false),
+            plane1Bullets: [],
+            plane2Bullets: [],
+        }
     }
 
-    var bullets = []
+    function createPlane(x, y, rightDirection) {
+        return {
+            x: x,
+            y: y,
+            width: 40,
+            height: 30,
+            color: "#0000FF",
+            rotation: rightDirection ? 0 : 180,
+            speed: [rightDirection ? 2 : -2, 0],
+            image: null,
+            health: 100,
+            flipImage: !rightDirection,
+        };
+    }
 
     function createBullet(x, y, rotation) {
         return {
             x: x,
             y: y,
-            radius: 10,
+            radius: 5,
             rotation: rotation,
-            speed: 5,
+            speed: 6,
+            distance: 0,
+            active: true,
         }
     }
 
-	function drawPlane() {
+	function drawPlane(plane) {
         ctx.save();
-        ctx.beginPath();
         ctx.translate(plane.x + plane.width / 2, plane.y + plane.height / 2);
         ctx.rotate(plane.rotation * Math.PI / 180);
-        var centerX
-        ctx.rect(-plane.width / 2, -plane.height / 2, plane.width, plane.height);
-        ctx.fillStyle = plane.color;
-        ctx.fill();
-        ctx.closePath();
+        if (DRAW_PLANE_TEXTURE_BOX) {
+            ctx.beginPath();
+            ctx.rect(-plane.width / 2, -plane.height / 2, plane.width, plane.height);
+            ctx.fillStyle = plane.color;
+            ctx.fill();
+            ctx.closePath();
+        }
         if (plane.image !== null) {
-            ctx.drawImage(planeImage, -24, -16, 48, 32);
+            if (plane.flipImage) {
+                ctx.scale(1, -1);
+            }
+            ctx.drawImage(plane.image, -24, -16, 48, 32);
         }
         ctx.restore();
+        if (DRAW_BOUNDING_BOX) {
+            ctx.beginPath();
+            ctx.rect(plane.x, plane.y, plane.width, plane.height);
+            ctx.fillStyle = "green";
+            ctx.fill();
+            ctx.closePath();
+        }
     }
 
     function drawBullets() {
-        bullets.forEach(b => {
-            ctx.beginPath();
-            ctx.arc(b.x, b.y, b.radius, 0, Math.PI*2);
-            ctx.fillStyle = "#FF0000";
-            ctx.fill();
-            ctx.closePath();
-        })
+        [gameState.plane1Bullets, gameState.plane2Bullets].forEach(bullets => {
+            bullets.forEach(b => {
+                if (!b.active) {
+                    return;
+                }
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, b.radius, 0, Math.PI*2);
+                ctx.fillStyle = "#FF0000";
+                ctx.fill();
+                ctx.closePath();
+            });
+        });
     }
 
-    function advancePlane() {
+    function advancePlane(plane) {
         //gForce = g * Math.sin(plane.rotation * Math.PI / 180);
         sin = Math.sin(plane.rotation * Math.PI / 180);
         cos = Math.cos(plane.rotation * Math.PI / 180);
@@ -142,19 +195,33 @@
     }
 
     function advanceBullets() {
+        gameState.plane1Bullets = filterAndAdvance(gameState.plane1Bullets);
+        gameState.plane2Bullets = filterAndAdvance(gameState.plane2Bullets);
+    }
+
+    function filterAndAdvance(bullets) {
+        bullets = bullets.filter(b => {
+            return b.distance < 1000;
+        })
         bullets.forEach(b => {
             sin = Math.sin(b.rotation * Math.PI / 180);
             cos = Math.cos(b.rotation * Math.PI / 180);
-            b.y = (b.y + b.speed * sin);
-            b.x = (b.x + b.speed * cos);
+            b.y = (canvas.height + b.y + b.speed * sin) % canvas.height;
+            b.x = (canvas.width + b.x + b.speed * cos) % canvas.width;
+            b.distance = b.distance + b.speed;
         });
+        return bullets;
     }
 
-    function checkCollision() {
+    function checkCollision(bullets, plane) {
         for (ball of bullets) {
-            if ((ball.x + ball.r > plane.x) && (ball.x - ball.r < plane.x + plane.width)
-                && (ball.y + ball.r > plane.y) && (ball.y - ball.r < plane.y + plane.height)) {
+            if ((ball.x > plane.x - ball.radius) 
+                && (ball.x < plane.x + plane.width + ball.radius)
+                && (ball.y > plane.y - ball.radius) 
+                && (ball.y < plane.y + plane.height + ball.radius)
+                && ball.active) {
                 
+                ball.active = false;
                 return true;
             };
         }
@@ -162,60 +229,55 @@
     }
 
     function readControls() {
-        if (rightPressed) {
-            plane.rotation = (plane.rotation + 2) % 360;
+        if (rightPressed2) {
+            gameState.plane2.rotation = (gameState.plane2.rotation + 2) % 360;
         }
-        if  (leftPressed) {
-            plane.rotation = (plane.rotation - 2) % 360;;
+        if  (leftPressed2) {
+            gameState.plane2.rotation = (gameState.plane2.rotation - 2) % 360;;
+        }
+        if (rightPressed1) {
+            gameState.plane1.rotation = (gameState.plane1.rotation + 2) % 360;
+        }
+        if  (leftPressed1) {
+            gameState.plane1.rotation = (gameState.plane1.rotation - 2) % 360;;
         }
     }
 
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        advancePlane();
+        advancePlane(gameState.plane1);
+        advancePlane(gameState.plane2);
         advanceBullets();
-        if (checkCollision()) {
-            plane.color = plane.color == "#0000FF" ? "#00FF00" : "#0000FF";
+        if (checkCollision(gameState.plane2Bullets, gameState.plane1)) {
+            gameState.score.player2++;
+            score2.innerHTML = "Player 2 Score: " + gameState.score.player2;
+
+        }
+        if (checkCollision(gameState.plane1Bullets, gameState.plane2)) {
+            gameState.score.player1++;
+            score1.innerHTML = "Player 1 Score: " + gameState.score.player1;
         }
         readControls();
-        drawPlane();
+        drawPlane(gameState.plane1);
+        drawPlane(gameState.plane2);
         drawBullets();
-    }
-
-    function initControls() {
-        gInput = document.getElementById("gForce");
-        gInput.addEventListener("change", function() {
-            g = [0, parseFloat(gInput.value) / 100];
-        });
-        wInput = document.getElementById("wForce");
-        wInput.addEventListener("change", function() {
-            wForce = [0, parseFloat(wInput.value) / 100];
-        });
-        eInput = document.getElementById("eForce");
-        eInput.addEventListener("change", function() {
-            eForce = parseFloat(eInput.value) / 100;
-        });
-        mass = document.getElementById("mass");
-        mass.addEventListener("change", function() {
-            m = parseFloat(mass.value) / 100;
-        });
-        maxInput = document.getElementById("maxSpeed");
-        maxInput.addEventListener("change", function() {
-            maxSpeed = parseFloat(maxInput.value) / 100;
-        });
     }
 
     function init() {
         planeImage = new Image();
-        planeImage.src = 'grey.png';
+        planeImage.src = 'red.png';
         planeImage.onload = function() {
-            plane.image = planeImage;
+            gameState.plane1.image = planeImage;
+        }
+        plane2Image = new Image();
+        plane2Image.src = 'grey.png';
+        plane2Image.onload = function() {
+            gameState.plane2.image = plane2Image;
         }
     }
 
     init();
     setInterval(draw, 10);
-    initControls();
     
 
     // 1. direction move of plane
@@ -225,6 +287,7 @@
     // 5. eject
     // 6. house
     // 7. collision detection of rotated object
+    // 8. health bar
 </script>
 
 </body>
